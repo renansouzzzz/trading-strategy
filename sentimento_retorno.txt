@@ -1,3 +1,9 @@
+//   ------------------ Copyright © 2024 Renan de Oliveira -------------------------
+//   |  OBS: Este código está protegido por leis de direitos autorais e patentes.  |
+//   |  Qualquer reprodução ou distribuição não autorizada deste código, ou        |
+//   |  qualquer parte dele, poderá resultar em penalidades civis e criminais.     |
+//   -------------------------------------------------------------------------------
+
 parametro
   MediaCurta(20);
   MediaLonga(200);
