@@ -2,63 +2,79 @@ parametro
   MediaCurta(20);
   MediaLonga(200);
   PeriodoTopFundo(4);
+  PerioTopo(5);
 
 var
-  precoMaximoDia, precoMinimoDia: Real;
-  precoAtual: Real;
-  medCurta, medLonga, vwap: Real;
-  sentimentoAmplitude: Real;
-  retornoNivel: Real;
-  precoEntrada, stopLoss, takeProfit: Real;
-  sentimentoDetectado, retornoDetectado: Boolean;
-  topoPeriodo, fundoPeriodo, ultimoTopo: Real;
-  volumeAtual, volumeMedio, volumeAcumulado: Real;
-  numCandles: Integer;
+  precoMaximoDia, precoMinimoDia                            : Real;
+  precoAtual                                               : Real;
+  medCurta, medLonga                                        : Real;
+  sentimentoAmplitude, retornoNivel, ultimoSentimento        : Real;
+  precoEntrada, precoSaida, stopLoss, takeProfit            : Real;
+  sentimentoDetectado, retornoDetectado, candleEliminadorDetectado : Boolean;
+  topoPeriodo, fundoPeriodo, periodoTopo                                 : Real;
+  volumeAtual, volumeMedio, volumeAcumulado                 : Real;
+  diaDeHoje                                                : string;
+  ultimoTopo, ultimoFundo                                   : Real;
+  mediaVinteRetorno                                         : Boolean;
+  numCandles                                                : Integer;
 
 begin
-  precoMaximoDia := HighD(0);
-  precoMinimoDia := LowD(0);
+  precoMaximoDia := HighD(1);
+  precoMinimoDia := LowD(1);
   precoAtual := Close;
   medCurta := Media(MediaCurta, Close);
   medLonga := Media(MediaLonga, Close);
-  vwap := VWAP;
-
   topoPeriodo := Highest(High, PeriodoTopFundo);
   fundoPeriodo := Lowest(Low, PeriodoTopFundo);
+  periodoTopo := Highest(High, PerioTopo);
+  diaDeHoje := DayOfWeek(Today());
+  sentimentoAmplitude := topoPeriodo - fundoPeriodo;
 
-  sentimentoAmplitude := precoMaximoDia - precoMinimoDia;
-
-  retornoNivel := precoMaximoDia - (sentimentoAmplitude * 0.5);
-
-  sentimentoDetectado := (sentimentoAmplitude >= 600) and (sentimentoAmplitude <= 800);
-  retornoDetectado := (precoAtual <= retornoNivel);//(precoAtual >= retornoNivel * 0.95) and (precoAtual <= retornoNivel * 1.05);
-  volumeAtual := Volume;
-  volumeAcumulado := VolumeD(0); // Volume financeiro total do dia
-
-  // Incrementa o número de candles
-  numCandles := CurrentBar + 1; // A variável CurrentBar geralmente indica o número do candle atual (começa em 0)
-
-  // Calcula a média do volume financeiro até o momento
-  volumeMedio := volumeAcumulado / numCandles;
-
-  if precoAtual > topoPeriodo then
+  if sentimentoAmplitude > (precoMaximoDia - precoMinimoDia) * 0.4 then
   begin
-    ultimoTopo := topoPeriodo;
+    sentimentoDetectado := True;
+    retornoNivel := topoPeriodo - (sentimentoAmplitude * 0.5);
   end;
 
-  if sentimentoDetectado 
-     and retornoDetectado 
-     and (precoAtual > medLonga)
-     and (volumeAtual > volumeMedio)
-     and (precoAtual > ultimoTopo)
-     and not IsBought 
-  then
+  if sentimentoDetectado then
   begin
-    BuyAtMarket;
+    if (precoAtual <= retornoNivel) and (precoAtual < topoPeriodo) then
+    begin
+      retornoDetectado := True;
+      mediaVinteRetorno := Close >= Media(MediaCurta, Close);
+    end;
+  end;
+
+  if mediaVinteRetorno then
+  begin
+    if (Close > topoPeriodo) and (Close > Open) then
+    begin
+      candleEliminadorDetectado := True;
+      ConsoleLog("Candle Eliminador detectado! - Preço: " + precoAtual, clGreen);
+    end;
+  end; 
+
+  volumeAtual := Volume;
+  volumeAcumulado := VolumeD(0);
+  numCandles := CurrentBar + 1;
+  volumeMedio := volumeAcumulado / numCandles;
+
+  if sentimentoDetectado 
+  and retornoDetectado 
+  and mediaVinteRetorno
+  //and candleEliminadorDetectado 
+  and (Open > medLonga) 
+  //and (volumeAtual > volumeMedio) 
+  and not IsBought then
+  begin
     precoEntrada := precoAtual;
-    stopLoss := fundoPeriodo;
-    takeProfit := precoEntrada + 300;
+    //ConsoleLog("Entrada: " + precoEntrada + " - Close: " + Open, clBlack);
+    BuyAtMarket;
+    stopLoss := Low[0] - 100;
+    takeProfit := periodoTopo;
     PaintBar(clGreen);
+    sentimentoDetectado := False;
+    retornoDetectado := False;
   end;
 
   if IsBought then
@@ -66,10 +82,14 @@ begin
     if (precoAtual <= stopLoss) then
     begin
       SellToCoverAtMarket;
+      precoSaida := precoAtual;
+      ConsoleLog("STOP LOSS!! - Preço Entrada: "  + " - Preço saída: " , clRed);
     end
     else if (precoAtual >= takeProfit) then
     begin
       SellToCoverAtMarket;
+      precoSaida := precoAtual;
+      ConsoleLog("TAKE PROFIT!! - Preço Entrada: "  + " - Preço saída: ", clGreen);
     end;
   end;
 end;
